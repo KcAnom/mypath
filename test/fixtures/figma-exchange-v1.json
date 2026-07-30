@@ -1,0 +1,50 @@
+{
+  "version": "FigmaExchangeV1",
+  "document": { "name": "Fixture card" },
+  "assets": [],
+  "frames": [
+    {
+      "id": "frame-card",
+      "type": "frame",
+      "name": "Card",
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 260,
+      "fills": [{ "type": "solid", "color": { "r": 1, "g": 1, "b": 1, "a": 1 } }],
+      "strokes": [{ "type": "solid", "color": { "r": 0.8, "g": 0.84, "b": 0.9, "a": 1 } }],
+      "strokeWidth": 1,
+      "cornerRadius": 16,
+      "autoLayout": { "mode": "vertical", "gap": 12, "padding": { "top": 24, "right": 24, "bottom": 24, "left": 24 }, "primaryAlign": "start", "counterAlign": "stretch", "wrap": false },
+      "children": [
+        {
+          "id": "title",
+          "type": "text",
+          "name": "Title",
+          "x": 24,
+          "y": 24,
+          "width": 372,
+          "height": 42,
+          "text": "Deterministic exchange",
+          "fills": [{ "type": "solid", "color": { "r": 0.08, "g": 0.12, "b": 0.2, "a": 1 } }],
+          "typography": { "family": "Inter", "style": "Bold", "weight": 700, "size": 28, "lineHeight": 1.2, "letterSpacing": 0, "align": "left" },
+          "children": []
+        },
+        {
+          "id": "body",
+          "type": "text",
+          "name": "Body",
+          "x": 24,
+          "y": 84,
+          "width": 372,
+          "height": 72,
+          "text": "Figma to MyPath and back without OAuth.",
+          "fills": [{ "type": "solid", "color": { "r": 0.3, "g": 0.35, "b": 0.45, "a": 1 } }],
+          "typography": { "family": "Inter", "style": "Regular", "weight": 400, "size": 16, "lineHeight": 1.5, "letterSpacing": 0, "align": "left" },
+          "children": []
+        }
+      ]
+    }
+  ],
+  "metadata": { "generator": "mypath-fixture" }
+}

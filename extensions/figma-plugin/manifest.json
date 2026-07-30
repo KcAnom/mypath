@@ -1,0 +1,10 @@
+{
+  "name": "MyPath Figma Exchange",
+  "id": "mypath-figma-exchange-v1",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": { "allowedDomains": ["none"] },
+  "documentAccess": "dynamic-page"
+}

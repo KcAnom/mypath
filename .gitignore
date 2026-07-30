@@ -1,0 +1,15 @@
+node_modules/
+data/*
+!data/.gitkeep
+desktop/dist/
+dist/
+.DS_Store
+.env
+*.log
+
+.runtime/
+.pi-subagents/
+.mypath-last-backup
+src-tauri/resources/
+src-tauri/target/
+macos/.build/

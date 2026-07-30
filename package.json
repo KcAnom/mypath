@@ -1,0 +1,62 @@
+{
+  "name": "mypath",
+  "version": "0.2.0",
+  "private": true,
+  "description": "MyPath — local-solo workspace for you and your agents",
+  "type": "module",
+  "scripts": {
+    "start": "npm run build:web && node server/index.js",
+    "server": "node server/index.js",
+    "build:web": "vite build",
+    "test": "node --test test/*.test.js",
+    "test:security": "node scripts/run-selected-tests.mjs security",
+    "test:integration": "node scripts/run-selected-tests.mjs integration",
+    "test:e2e:prod": "node scripts/run-selected-tests.mjs e2e",
+    "typecheck": "tsc -p tsconfig.json --pretty false && tsc -p tsconfig.web.json --pretty false",
+    "lint": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "build:prod": "npm run build:web && npm run stage-runtime && node scripts/verify-runtime-stage.mjs",
+    "stage-runtime": "node scripts/stage-runtime.mjs",
+    "verify:core-offline": "node scripts/verify-core-offline-loop.mjs",
+    "verify:routes": "node scripts/verify-routes.mjs",
+    "verify:http-ui": "node scripts/verify-http-ui.mjs",
+    "verify:ui-interaction": "npm run build:web && node scripts/verify-ui-interaction.mjs",
+    "verify:backup-restore": "node scripts/verify-backup-restore.mjs",
+    "verify:phase0": "npm run lint && npm run typecheck && npm test && npm run build && npm run verify:routes && npm run verify:http-ui && npm run verify:backup-restore",
+    "verify:phase1": "npm run verify:phase0 && node --test test/phase1.test.js",
+    "verify:phase2": "npm run verify:phase1 && node --test test/phase2.test.js",
+    "verify:phase3": "npm run verify:phase2 && node --test test/phase3.test.js test/phase3-http.test.js",
+    "verify:phase4": "npm run verify:phase3 && node --test test/phase4.test.js",
+    "verify:phase5": "npm run verify:phase4 && node --test test/phase5.test.js && node scripts/verify-phase5.mjs",
+    "verify:phase6": "npm run verify:phase5 && node --test test/phase6.test.js test/phase6-http.test.js && node scripts/verify-phase6.mjs",
+    "verify:phase7": "npm run verify:phase6 && node --test test/phase7.test.js test/phase7-http.test.js && node scripts/verify-phase7.mjs",
+    "verify:all": "npm run verify:phase7 && npm run build:prod && npm run verify:ui-interaction && npm run verify:core-offline && npm run desktop:smoke:clean",
+    "desktop:smoke:clean": "node scripts/desktop-smoke-clean.mjs",
+    "revisions:backfill": "node scripts/revisions-backfill.mjs",
+    "backup:create": "node scripts/backup.mjs create",
+    "backup:verify": "node scripts/backup.mjs verify",
+    "backup:restore": "node scripts/backup.mjs restore",
+    "desktop": "cd src-tauri && MYPATH_ROOT=.. cargo tauri dev",
+    "desktop:build": "npm run build:prod && cd src-tauri && cargo tauri build --bundles app --no-sign",
+    "desktop:build:universal": "bash scripts/desktop-build-universal.sh",
+    "desktop:open": "open src-tauri/target/release/bundle/macos/MyPath.app"
+  },
+  "engines": {
+    "node": "22.22.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.17",
+    "@vitejs/plugin-react": "^5.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.17",
+    "tldraw": "^5.2.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.5"
+  }
+}

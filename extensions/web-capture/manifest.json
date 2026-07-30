@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "MyPath Surgical Web Capture",
+  "version": "1.0.0",
+  "description": "Capture one user-selected element with a short-lived, origin-scoped MyPath ticket.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Capture into MyPath" }
+}

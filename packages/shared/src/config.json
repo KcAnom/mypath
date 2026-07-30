@@ -1,0 +1,54 @@
+{
+  "product": "MyPath",
+  "tagline": "Local workspace for you and your agents",
+  "description": "Create, refine, and explore \u2014 fully local, solo use.",
+  "mode": "local-solo",
+  "desktop": {
+    "version": "0.1.0",
+    "bundleId": "local.mypath.app",
+    "protocol": "mypath",
+    "minMacOS": "12.0",
+    "window": {
+      "width": 1440,
+      "height": 960,
+      "minWidth": 1000,
+      "minHeight": 700
+    }
+  },
+  "channels": {
+    "local": {
+      "apiOrigin": "http://127.0.0.1:8787",
+      "appOrigin": "http://127.0.0.1:5173",
+      "webUrl": "http://127.0.0.1:5173/",
+      "appHomeUrl": "http://127.0.0.1:5173/files",
+      "updateUrl": null
+    }
+  },
+  "env": {
+    "MYPATH_API_ORIGIN": "http://127.0.0.1:8787",
+    "MYPATH_APP_ORIGIN": "http://127.0.0.1:5173",
+    "MYPATH_DATA_DIR": "./data",
+    "MYPATH_CHANNEL": "local"
+  },
+  "removed_saas": [
+    "multi-tenant auth (OAuth/SSO/magic-link/guest)",
+    "billing/subscriptions/credits",
+    "organizations/seats",
+    "admin console",
+    "community/public listings",
+    "Figma cloud OAuth",
+    "browser extension bridge",
+    "Firebase/Intercom/GA/Mixpanel/Vercel analytics",
+    "remote auto-update feed"
+  ],
+  "kept_local_capabilities": [
+    "projects",
+    "components + revisions",
+    "design systems",
+    "libraries",
+    "chat/agent threads (local)",
+    "skills",
+    "local assets/media",
+    "desktop shell pointing at local web"
+  ]
+}
