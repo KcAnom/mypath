@@ -65,7 +65,17 @@ async function requestOnce(url, { lookup, timeoutMs }) {
       method: 'GET', timeout: timeoutMs, maxHeaderSize: 16 * 1024,
       headers: { Accept: 'text/css,text/html;q=0.8', 'Accept-Encoding': 'gzip, deflate, br', 'User-Agent': 'MyPath-Theme-Review/1' },
       lookup: async (hostname, options, callback) => { // Re-resolve immediately at connect time to reject rebinding.
-        try { const records = await resolvePublic(hostname, lookup); const requestedFamily = typeof options === 'number' ? options : options?.family; const chosen = records.find((entry) => !requestedFamily || entry.family === requestedFamily) || records[0]; callback(null, chosen.address, chosen.family); } catch (error) { callback(error, undefined, undefined); }
+        try {
+          const records = await resolvePublic(hostname, lookup); // Throws unless every resolved address is public.
+          const requestedFamily = typeof options === 'number' ? options : options?.family;
+          const matching = records.filter((entry) => !requestedFamily || entry.family === requestedFamily);
+          const usable = matching.length ? matching : records;
+          // Happy Eyeballs (autoSelectFamily, on by default since Node 20) calls lookup with
+          // all:true and expects an array; answering with a single address makes net read
+          // addresses[0].address off a string and fail with ERR_INVALID_IP_ADDRESS.
+          if ((typeof options === 'object' && options?.all) === true) callback(null, usable.map((entry) => ({ address: entry.address, family: entry.family })));
+          else callback(null, usable[0].address, usable[0].family);
+        } catch (error) { callback(error, undefined, undefined); }
       },
     }, (response) => {
       const chunks = []; let total = 0; let done = false;

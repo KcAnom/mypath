@@ -14,7 +14,15 @@ export function DesignSystemsPage() {
   const refresh = useCallback(async () => { try { setItems(await api.get<Entity[]>('/api/v1/design-systems')); } catch (reason) { setStatus({ kind: 'error', text: errorText(reason) }); } finally { setLoading(false); } }, []); useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => { if (!status || status.kind === 'error') return; const t = setTimeout(() => setStatus(null), 6000); return () => clearTimeout(t); }, [status]);
   const perform = async (name: string, task: () => Promise<void>) => { if (busy) return; setBusy(name); setStatus(null); try { await task(); } catch (reason) { setStatus({ kind: 'error', text: errorText(reason) }); } finally { setBusy(''); } };
-  const extract = () => perform('extract', async () => { setReview(await api.post('/api/v1/theme-extractions', source.trim().startsWith('https://') ? { url: source.trim() } : { css: source })); setStatus({ kind: 'info', text: 'Extraction is ready for review.' }); });
+  // Treat a bare host ("example.com/theme.css") as a URL too; only CSS punctuation or
+  // whitespace marks the input as a stylesheet, so a pasted address is never sent as CSS.
+  const asSource = (raw: string) => { const trimmed = raw.trim(); if (/^https?:\/\//i.test(trimmed)) return { url: trimmed }; if (!/[{};]/.test(trimmed) && !/\s/.test(trimmed) && /^[a-z0-9.-]+\.[a-z]{2,}(?:[/:?]|$)/i.test(trimmed)) return { url: `https://${trimmed}` }; return { css: raw }; };
+  const extract = () => perform('extract', async () => {
+    const result = await api.post<any>('/api/v1/theme-extractions', asSource(source));
+    setReview(result);
+    if (result?.status === 'failed') setStatus({ kind: 'error', text: result.diagnostics?.map((item: any) => item.message).filter(Boolean).join(' · ') || 'Extraction failed and produced no tokens.' });
+    else setStatus({ kind: 'info', text: 'Extraction is ready for review.' });
+  });
   const open = (kind: 'create' | 'version', item?: Entity) => { setModal({ kind, item }); setValue(kind === 'create' ? 'New design system' : item?.markdown || `# ${item?.name || 'Design system'}`); setStatus(null); };
   const save = () => perform('modal', async () => { if (modal?.kind === 'create') { await api.post('/api/v1/design-systems', { name: value.trim() }); setStatus({ kind: 'success', text: 'Design system created.' }); } else if (modal?.item) { await api.post(`/api/v1/design-systems/${modal.item.id}/versions`, { markdown: value }); setStatus({ kind: 'success', text: 'New version created.' }); } await refresh(); setModal(null); });
   return <>
@@ -34,7 +42,8 @@ export function DesignSystemsPage() {
           <button className="danger" disabled={Boolean(busy)} onClick={() => perform('reject', async () => { setReview(await api.post(`/api/v1/theme-extractions/${review.id}/review`, { approved: false })); setStatus({ kind: 'info', text: 'Proposal rejected.' }); })}>Reject</button>
         </div>
       </div>}
-      {review && review.status !== 'pending' && <p className="status-message info" role="status" title={review.versionId || ''}>Review {review.status}{review.versionId ? ' · saved as a new version' : ''}</p>}
+      {review?.status === 'failed' && <div className="status-message error" role="alert"><strong>Could not extract a theme</strong>{review.diagnostics?.length ? <ul>{review.diagnostics.map((item: any, index: number) => <li key={`${item.code}-${index}`}>{item.message || item.code}</li>)}</ul> : <p>The address was reached but produced no reusable tokens.</p>}<p className="meta">This reads CSS custom properties (<code>--token: value;</code>). A page or stylesheet that defines none cannot be extracted.</p></div>}
+      {review && review.status !== 'pending' && review.status !== 'failed' && <p className="status-message info" role="status" title={review.versionId || ''}>Review {review.status}{review.versionId ? ' · saved as a new version' : ''}</p>}
     </section>
     {loading ? <div className="loading-state" role="status"><span className="loading-pulse"/>Loading design systems…</div>
       : items && items.length > 0 ? <div className="grid">{items.map((item) => <article className="card" key={item.id}><h3>{item.name}</h3><div className="meta">Version {item.currentVersion?.version || '?'}<small className="meta" title={item.currentVersion?.id || ''}>{item.currentVersion?.id ? ' · compiled' : ' · not compiled'}</small></div><p>{item.markdown || item.prompt}</p><div className="row"><button disabled={Boolean(busy)} onClick={() => open('version', item)}>New version</button></div></article>)}</div>

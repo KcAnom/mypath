@@ -31,6 +31,17 @@ try {
   // npm's command shims are symlinks and are not used by the embedded server; remove
   // them so the packaged resource tree is regular-file-only and fully checksummed.
   fs.rmSync(path.join(temporary, 'node_modules', '.bin'), { recursive: true, force: true });
+  // Finder can drop .DS_Store into the staged tree at any point before the manifest is
+  // written. Shipping it is harmless, but checksumming it is not: Finder keeps rewriting the
+  // file in place, so the bundle then fails its own integrity check for no real reason.
+  const pruneFinderJunk = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) pruneFinderJunk(absolute);
+      else if (entry.name === '.DS_Store') fs.rmSync(absolute, { force: true });
+    }
+  };
+  pruneFinderJunk(temporary);
   const files = [];
   const walk = (directory, prefix = '') => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {

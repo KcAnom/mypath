@@ -19,7 +19,12 @@ test('packaged UI never uses unreliable browser prompt, confirm, or alert dialog
 
 test('async controls expose local diagnostics and global unhandled failure safety', () => {
   const app = fs.readFileSync('web/src/App.tsx', 'utf8'); const canvas = fs.readFileSync('web/src/canvas/ProjectCanvas.tsx', 'utf8'); const chat = fs.readFileSync('web/src/components/ProjectChatPanel.tsx', 'utf8'); const global = fs.readFileSync('web/src/components/GlobalErrorBanner.tsx', 'utf8');
-  assert.match(app, /catch \(reason\).*setStatus\(`Failed:/s); assert.match(canvas, /catch \(reason\).*setStatus/s); assert.match(chat, /catch \(reason: any\) \{ setError/s);
+  // Failures are typed, not sniffed out of a message prefix: every catch sets kind 'error',
+  // which is what selects the alert styling and role. A bare setStatus(string) would regress this.
+  for (const [name, source] of [['App', app], ['ProjectCanvas', canvas], ['ProjectChatPanel', chat]]) {
+    assert.match(source, /catch \(reason[^)]*\)[\s\S]{0,80}setStatus\(\{ kind: 'error'/, `${name} must report caught failures as an error-kind status`);
+    assert.doesNotMatch(source, /startsWith\(['"`]Failed:/, `${name} must not infer failure from a message prefix`);
+  }
   assert.match(global, /unhandledrejection/); assert.match(global, /role="alert"/); assert.match(chat, /disabled=\{submitting.*!prompt\.trim\(\)/s);
 });
 
@@ -34,7 +39,10 @@ test('desktop instance nonce is captured once at module initialization and reuse
 
 test('Phase 7 desktop capabilities have reachable busy/error/status UI', () => {
   const webImport = fs.readFileSync('web/src/components/WebImportPanel.tsx', 'utf8'); const app = fs.readFileSync('web/src/App.tsx', 'utf8');
-  for (const marker of ['FigmaExchangeV1 import', 'Opt-in reference search', 'Explicitly fetch this result', 'Immutable search provenance', 'capture-tickets']) assert.match(webImport, new RegExp(marker));
+  // Match the capability, not one exact phrase: the user-facing wording was deliberately
+  // de-jargoned (FigmaExchangeV1 -> "Figma file", "Immutable ... provenance" -> plain language),
+  // so assert each surface is still reachable rather than pinning copy that is meant to evolve.
+  for (const marker of [/Figma file import/, /Opt-in reference search/, /Explicitly fetch this result/, /provenance-list/, /capture-tickets/]) assert.match(webImport, marker);
   assert.match(app, /Download Figma JSON/); assert.match(app, /Choose a project for chat and generation/); assert.doesNotMatch(app, /canned/i);
 });
 
