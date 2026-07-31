@@ -197,32 +197,44 @@ export class CandidateService {
     else if (!fs.existsSync(resultPath)) result = { ok: false, diagnostics: [{ severity: 'error', stage: 'worker', code: 'worker_failed', message: (child.stderr || child.error?.message || `Worker exited ${child.status}`).slice(0, 4000) }] };
     else result = decode(fs.readFileSync(resultPath, 'utf8'), { ok: false, diagnostics: [{ severity: 'error', stage: 'worker', code: 'invalid_worker_result', message: 'Build worker returned invalid output' }] });
     if (!result.ok) {
-      const finished = now();
-      const diagnostics = result.diagnostics || [];
-      this.db.exec('BEGIN IMMEDIATE');
-      try {
-        this.db.prepare("UPDATE builds SET status='failed',finished_at=?,diagnostics_json=?,worker_json=? WHERE id=?").run(finished, encode(diagnostics), encode({ exitCode: child.status, signal: child.signal }), buildId);
-        this.db.prepare("UPDATE revision_candidates SET status='failed',updated_at=?,diagnostics_json=? WHERE id=?").run(finished, encode(diagnostics), candidate.id);
-        this.db.prepare('INSERT INTO build_events(build_id,event_type,data_json,created_at) VALUES(?,?,?,?)').run(buildId, 'failed', encode({ diagnostics }), finished);
-        this.db.exec('COMMIT');
-      } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+      this.failBuild(buildId, candidate.id, result.diagnostics || [], { exitCode: child.status, signal: child.signal });
       fs.rmSync(workspace, { recursive: true, force: true });
       return this.getBuild(buildId);
     }
-    const artifact = fs.readFileSync(path.join(workspace, 'artifact.html'));
-    const artifactHash = checksum(artifact);
-    const stagePath = path.join(this.stageDir, `${artifactHash}.${buildId}.html.stage`);
-    const finalPath = path.join(this.artifactDir, `${artifactHash}.html`);
-    fs.copyFileSync(path.join(workspace, 'artifact.html'), stagePath, fs.constants.COPYFILE_EXCL);
-    fs.chmodSync(stagePath, 0o400);
-    const publicationId = id();
-    this.db.prepare(`INSERT INTO artifact_publications(id,build_id,candidate_id,artifact_hash,stage_path,final_path,status,created_at)
-      VALUES(?,?,?,?,?,?,?,?)`).run(publicationId, buildId, candidate.id, artifactHash, stagePath, finalPath, 'intent', now());
-    if (fs.existsSync(finalPath)) fs.rmSync(stagePath, { force: true });
-    else fs.renameSync(stagePath, finalPath);
-    this.db.prepare("UPDATE artifact_publications SET status='published',published_at=? WHERE id=?").run(now(), publicationId);
-    fs.rmSync(workspace, { recursive: true, force: true });
-    return this.finalize(buildId, artifactHash, finalPath, result.stats || {});
+    // Publication must never leave the build in 'building': a stuck row makes /builds/:id/run
+    // resolve nothing and keeps the event stream polling for a terminal state that never arrives.
+    try {
+      const artifact = fs.readFileSync(path.join(workspace, 'artifact.html'));
+      const artifactHash = checksum(artifact);
+      const stagePath = path.join(this.stageDir, `${artifactHash}.${buildId}.html.stage`);
+      const finalPath = path.join(this.artifactDir, `${artifactHash}.html`);
+      fs.copyFileSync(path.join(workspace, 'artifact.html'), stagePath, fs.constants.COPYFILE_EXCL);
+      fs.chmodSync(stagePath, 0o400);
+      const publicationId = id();
+      this.db.prepare(`INSERT INTO artifact_publications(id,build_id,candidate_id,artifact_hash,stage_path,final_path,status,created_at)
+        VALUES(?,?,?,?,?,?,?,?)`).run(publicationId, buildId, candidate.id, artifactHash, stagePath, finalPath, 'intent', now());
+      if (fs.existsSync(finalPath)) fs.rmSync(stagePath, { force: true });
+      else fs.renameSync(stagePath, finalPath);
+      this.db.prepare("UPDATE artifact_publications SET status='published',published_at=? WHERE id=?").run(now(), publicationId);
+      return this.finalize(buildId, artifactHash, finalPath, result.stats || {});
+    } catch (error) {
+      try { this.failBuild(buildId, candidate.id, [{ severity: 'error', stage: 'publish', code: error?.code || 'artifact_publish_failed', message: String(error?.message || error).slice(0, 4000) }]); } catch {}
+      throw error;
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+
+  failBuild(buildId, candidateId, diagnostics, worker = null) {
+    const finished = now();
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      if (worker) this.db.prepare("UPDATE builds SET status='failed',finished_at=?,diagnostics_json=?,worker_json=? WHERE id=?").run(finished, encode(diagnostics), encode(worker), buildId);
+      else this.db.prepare("UPDATE builds SET status='failed',finished_at=?,diagnostics_json=? WHERE id=?").run(finished, encode(diagnostics), buildId);
+      this.db.prepare("UPDATE revision_candidates SET status='failed',updated_at=?,diagnostics_json=? WHERE id=?").run(finished, encode(diagnostics), candidateId);
+      this.db.prepare('INSERT INTO build_events(build_id,event_type,data_json,created_at) VALUES(?,?,?,?)').run(buildId, 'failed', encode({ diagnostics }), finished);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
 
   finalize(buildId, artifactHash, finalPath, stats = {}) {

@@ -235,9 +235,11 @@ async function api(req, res, url) {
   validateMutation(method, p, body);
 
   if (method === 'GET' && p === '/health') {
-    const supplied = String(req.headers['x-mypath-instance'] || '');
-    const expected = String(process.env.MYPATH_INSTANCE_NONCE || '');
-    const instanceAuthenticated = Boolean(expected && supplied.length === expected.length && crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected)));
+    // Compare byte lengths, not string lengths: a header carrying non-ASCII bytes decodes to
+    // an equal-length latin1 string but a longer UTF-8 buffer, which makes timingSafeEqual throw.
+    const supplied = Buffer.from(String(req.headers['x-mypath-instance'] || ''));
+    const expected = Buffer.from(String(process.env.MYPATH_INSTANCE_NONCE || ''));
+    const instanceAuthenticated = Boolean(expected.length && supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected));
     return send(res, 200, { ok: true, product: 'mypath', mode: 'local-solo', instanceAuthenticated, features: ['canvas', 'generation', 'design-systems', 'project-chat', 'parallel-jobs', 'visual-editing', 'revision-restore', 'variants', 'reproducible-export', 'external-agents', 'safe-web-import', 'surgical-capture', 'opt-in-search', 'figma-exchange-v1'] });
   }
 
@@ -468,7 +470,7 @@ async function api(req, res, url) {
   }
   {
     const m = match(p, '/assets/:id/content');
-    if (m && method === 'GET') { const asset = assets.get(m.id); if (!asset || asset.tombstonedAt) return send(res, 404, { error: 'asset not found' }); return send(res, 200, fs.readFileSync(asset.path), { 'Content-Type': asset.mediaType, 'Content-Length': String(asset.byteSize), 'Content-Disposition': `${asset.kind === 'image' ? 'inline' : 'attachment'}; filename="${asset.name.replace(/["\\]/g, '_')}"`, 'Cache-Control': 'private, max-age=31536000, immutable' }); }
+    if (m && method === 'GET') { const asset = assets.get(m.id); if (!asset || asset.tombstonedAt || !fs.existsSync(asset.path)) return send(res, 404, { error: 'asset not found' }); return send(res, 200, fs.readFileSync(asset.path), { 'Content-Type': asset.mediaType, 'Content-Length': String(asset.byteSize), 'Content-Disposition': `${asset.kind === 'image' ? 'inline' : 'attachment'}; filename="${asset.name.replace(/["\\]/g, '_')}"`, 'Cache-Control': 'private, max-age=31536000, immutable' }); }
     if (m && method === 'DELETE') return assets.tombstone(m.id) ? send(res, 204, '') : send(res, 404, { error: 'asset not found' });
   }
   if (method === 'POST' && p === '/assets/gc') return send(res, 200, { removed: assets.gc({ retentionMs: body?.retentionMs, backupPath: body?.backupPath }) });
@@ -1020,7 +1022,7 @@ const server = http.createServer(async (req, res) => {
     // Static assets first
     if (pathname.startsWith('/assets/') || pathname.startsWith('/src/')) {
       const filePath = path.normalize(path.join(WEB, pathname));
-      if (filePath.startsWith(WEB) && staticFile(res, filePath)) return;
+      if (filePath.startsWith(WEB + path.sep) && staticFile(res, filePath)) return;
     }
 
     // SPA document navigations (fixes blank WKWebView / refresh on /projects/:id etc.)

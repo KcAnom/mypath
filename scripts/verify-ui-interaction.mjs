@@ -29,6 +29,10 @@ try {
   const until = async (expression, label) => { for (let index = 0; index < 120; index++) { if (await evaluate(`Boolean(${expression})`)) return; await wait(50); } throw new Error(`Timed out waiting for ${label}`); };
   await command('Runtime.enable'); await command('Page.enable'); await command('Page.navigate', { url: `${base}/files?instanceNonce=${instanceNonce}` });
   await until(`document.querySelector('.floating-create')?.textContent.includes('New project')`, 'first-run Projects UI');
+  assert.equal(await evaluate(`document.querySelectorAll('#app').length`), 1, 'React must not render a nested duplicate #app shell');
+  assert.equal(await evaluate(`document.querySelector('#app > .app-shell') !== null`), true, 'app shell is a classed child of the mount point');
+  assert.ok(await evaluate(`document.querySelector('.main').getBoundingClientRect().width`), 'main content has measurable width');
+  assert.ok(await evaluate(`document.querySelector('.main').getBoundingClientRect().width > 400`), 'main content does not collapse into the sidebar grid column');
   assert.equal(await evaluate(`typeof window.prompt + ',' + typeof window.confirm + ',' + typeof window.alert`), 'function,function,function', 'browser dialogs may exist but UI must not call them');
   await evaluate(`document.querySelector('.floating-create').click()`); await until(`document.querySelector('[role="dialog"] input') !== null`, 'in-app project form');
   await evaluate(`(()=>{const input=document.querySelector('[role="dialog"] input');const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(input,'Headless interaction project');input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
