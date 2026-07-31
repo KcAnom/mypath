@@ -58,6 +58,19 @@ function extractCss(body, contentType) {
   }
   throw Object.assign(new Error('Theme response must be CSS or HTML'), { status: 415, code: 'theme_mime_invalid' });
 }
+const MAX_STYLESHEETS = 10;
+function linkedStylesheets(html, base) {
+  const found = []; const seen = new Set();
+  for (const tag of html.matchAll(/<link\b[^>]*>/gi)) {
+    const text = tag[0];
+    if (!/\srel\s*=\s*["']?[^"'>]*\bstylesheet\b/i.test(text)) continue;
+    const href = (text.match(/\shref\s*=\s*["']([^"']+)["']/i) || [])[1]; if (!href) continue;
+    let resolved; try { resolved = assertPublicHttpsUrl(new URL(href, base)); } catch { continue; }
+    if (resolved.host !== base.host) continue; // Same-origin only; see caller.
+    if (seen.has(resolved.href)) continue; seen.add(resolved.href); found.push(resolved);
+  }
+  return found;
+}
 async function requestOnce(url, { lookup, timeoutMs }) {
   await resolvePublic(url.hostname, lookup); // Validate before creating a socket.
   return new Promise((resolve, reject) => {
@@ -100,8 +113,30 @@ export async function fetchThemeFromUrl(input, options = {}) {
     }
     if (response.status < 200 || response.status >= 300) throw Object.assign(new Error(`Theme URL returned HTTP ${response.status}`), { status: 422, code: 'theme_http_error' });
     const encoding = String(response.headers['content-encoding'] || 'identity').toLowerCase().trim(); const body = decompress(response.bytes, encoding); if (body.length > MAX_DECOMPRESSED) throw Object.assign(new Error('Theme response exceeds 2 MiB decompressed limit'), { status: 413, code: 'theme_response_too_large' });
-    const contentType = String(response.headers['content-type'] || '').split(';')[0].trim(); const css = extractCss(body, contentType);
-    return { css, finalUrl: url.href, redirects, metadata: { contentType, contentEncoding: encoding, compressedBytes: response.bytes.length, decompressedBytes: body.length } };
+    const contentType = String(response.headers['content-type'] || '').split(';')[0].trim(); let css = extractCss(body, contentType);
+    // A page's design tokens almost always live in its linked stylesheets, not in an inline
+    // <style>. Reading only inline CSS returned a near-empty theme for any real site, so
+    // same-origin stylesheets are followed through this same guarded path. Cross-origin hrefs
+    // are skipped deliberately: they are usually third-party CDNs, and each one widens the
+    // set of hosts a pasted URL can make this process contact.
+    const stylesheets = [];
+    if (/^(?:text\/html|application\/xhtml\+xml)\b/i.test(contentType)) {
+      let budget = MAX_DECOMPRESSED - body.length;
+      for (const href of linkedStylesheets(body.toString('utf8'), url)) {
+        if (stylesheets.length >= MAX_STYLESHEETS || budget <= 0) break;
+        try {
+          const sheet = await requestOnce(href, { lookup, timeoutMs });
+          if (sheet.status < 200 || sheet.status >= 300) continue;
+          const sheetType = String(sheet.headers['content-type'] || '').split(';')[0].trim();
+          if (!/^(?:text\/css|application\/css)\b/i.test(sheetType)) continue;
+          const sheetBody = decompress(sheet.bytes, String(sheet.headers['content-encoding'] || 'identity').toLowerCase().trim());
+          if (sheetBody.length > budget) continue;
+          const sheetText = sheetBody.toString('utf8'); if (sheetText.includes('�')) continue;
+          budget -= sheetBody.length; css += `\n/* ${href.href} */\n${sheetText}`; stylesheets.push(href.href);
+        } catch { continue; } // One unreachable stylesheet must not fail the whole extraction.
+      }
+    }
+    return { css, finalUrl: url.href, redirects, metadata: { contentType, contentEncoding: encoding, compressedBytes: response.bytes.length, decompressedBytes: body.length, stylesheets } };
   }
   throw new Error('unreachable');
 }

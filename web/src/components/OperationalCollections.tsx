@@ -34,6 +34,11 @@ export function DesignSystemsPage() {
       <button onClick={extract} disabled={Boolean(busy) || !source.trim()} title={!source.trim() ? 'Paste CSS or a web address first.' : ''}>{busy === 'extract' ? 'Extracting…' : 'Extract for review'}</button>
       {review?.status === 'pending' && <div className="proposal-review">
         <p className="meta">Proposed design system: <strong>{review.proposal?.name || 'Untitled theme'}</strong> · default theme {review.proposal?.defaultTheme || 'light'}</p>
+        <p className="meta">{[
+          review.metadata?.stylesheets?.length ? `Read ${review.metadata.stylesheets.length} stylesheet${review.metadata.stylesheets.length === 1 ? '' : 's'} from the page` : '',
+          review.proposal?.summary?.omittedTokenCount ? `${review.proposal.summary.omittedTokenCount} less theme-like token${review.proposal.summary.omittedTokenCount === 1 ? '' : 's'} left out to fit the 200-token limit` : '',
+          review.proposal?.summary?.skippedUnsafeCount ? `${review.proposal.summary.skippedUnsafeCount} skipped as unusable values` : '',
+        ].filter(Boolean).join(' · ')}</p>
         {review.proposal?.light && Object.keys(review.proposal.light).length > 0 && <div><h4>Light tokens</h4><TokenRows tokens={review.proposal.light}/></div>}
         {review.proposal?.dark && Object.keys(review.proposal.dark).length > 0 && <div><h4>Dark tokens</h4><TokenRows tokens={review.proposal.dark}/></div>}
         <details><summary>Raw data</summary><pre>{JSON.stringify(review.proposal, null, 2)}</pre></details>

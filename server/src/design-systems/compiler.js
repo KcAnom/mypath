@@ -9,6 +9,14 @@ const stable = (value) => {
 };
 export const designChecksum = (value) => crypto.createHash('sha256').update(stable(value)).digest('hex');
 
+/** Exactly the rule normalizeTokens enforces, so extraction can drop tokens this
+ * would reject instead of failing a whole import on one unusable declaration. */
+export function acceptsToken(name, raw) {
+  if (!TOKEN.test(String(name))) return false;
+  const value = String(raw ?? '').trim();
+  return Boolean(value) && value.length <= 300 && !FORBIDDEN_VALUE.test(value) && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
 export function normalizeTokens(input, label = 'theme') {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error(`${label} tokens must be an object`), { status: 422, code: 'design_tokens_invalid' });
   const entries = Object.entries(input);
